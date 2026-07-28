@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flashing Profile Drawer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>Flashing Profile Drawer</h1>
+    <div class="toolbar">
+      <div class="mode-group">
+        <button id="modeDraw" class="mode-btn active">Draw</button>
+        <button id="modeEdit" class="mode-btn">Edit</button>
+        <button id="modePan" class="mode-btn">Pan</button>
+      </div>
+      <button id="zoomInBtn">+</button>
+      <button id="zoomOutBtn">−</button>
+      <button id="zoomResetBtn">Reset View</button>
+      <button id="newBtn">New Drawing</button>
+      <button id="undoBtn">Undo</button>
+      <button id="exportPngBtn">Export PNG</button>
+      <button id="exportPdfBtn">Export PDF</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="canvas-wrap">
+      <canvas id="canvas" width="800" height="600"></canvas>
+      <p class="hint" id="hint">Click anywhere on the canvas to place your starting point.</p>
+    </div>
+
+    <aside class="sidebar">
+      <h2>Segments</h2>
+      <div class="total">Total girth: <span id="totalGirth">0</span> mm</div>
+      <table id="segTable">
+        <thead>
+          <tr><th>#</th><th>Length (mm)</th><th>Turn (°)</th><th></th></tr>
+        </thead>
+        <tbody id="segBody"></tbody>
+      </table>
+      <p class="empty-hint" id="segEmpty">No segments yet — draw on the canvas to add one.</p>
+      <p class="note">Turn angle = relative to the previous segment. First segment is relative to horizontal.</p>
+    </aside>
+  </main>
+</div>
+
+<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
