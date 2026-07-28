@@ -5,7 +5,7 @@ const SNAP_DEG = 45;
 const HIT_RADIUS = 20; // screen px
 
 let startPoint = null;       // world coords {x,y}
-let segments = [];           // [{length_mm, rel_angle_deg}]  rel_angle_deg in -180..180
+let segments = [];           // [{length_mm, rel_angle_deg}]  rel_angle_deg in -180..180 (internal "turn" value)
 let mode = "draw";           // draw | edit | pan
 let scale = 1;
 let offsetX = 0, offsetY = 0;
@@ -20,7 +20,6 @@ let panOffsetStart = null;
 // ---------- geometry helpers ----------
 
 function cumulativeDirs() {
-  // dirs[i] = absolute direction (deg) after segment i
   const dirs = [];
   let cur = 0;
   segments.forEach((seg, i) => {
@@ -45,10 +44,30 @@ function points() {
 }
 
 function snapRel(deg) {
-  let d = ((deg % 360) + 360) % 360;       // normalize to 0-360
+  let d = ((deg % 360) + 360) % 360;
   let snapped = Math.round(d / SNAP_DEG) * SNAP_DEG % 360;
-  if (snapped > 180) snapped -= 360;        // shift to -180..180
+  if (snapped > 180) snapped -= 360;
   return snapped;
+}
+
+// ---------- interior-angle <-> turn conversion ----------
+// "turn" = exterior deviation from the previous segment's direction (internal, drives geometry)
+// "interior" = the included angle of the bend, as you'd naturally call it (180 = straight, 0 = folded flat back)
+
+function turnToInterior(turnDeg) {
+  return Math.round((180 - Math.abs(turnDeg)) * 10) / 10;
+}
+
+function interiorToTurn(interiorDeg, currentTurnDeg) {
+  const sign = Math.sign(currentTurnDeg) || 1;
+  const magnitude = 180 - interiorDeg;
+  return magnitude === 0 ? 0 : sign * magnitude;
+}
+
+function displayAngleFor(i) {
+  // segment 0 has no "previous" to bend from — always shown/locked at 0
+  if (i === 0) return 0;
+  return turnToInterior(segments[i].rel_angle_deg);
 }
 
 // ---------- coordinate transforms ----------
@@ -78,7 +97,6 @@ function draw() {
   ctx.translate(offsetX, offsetY);
   ctx.scale(scale, scale);
 
-  // grid
   ctx.strokeStyle = "#eee";
   ctx.lineWidth = 1 / scale;
   const gridStep = 20 * PX_PER_MM;
@@ -118,7 +136,6 @@ function draw() {
 
   ctx.restore();
 
-  // --- length labels, drawn in screen space so text size is constant ---
   if (pts.length > 1) {
     ctx.font = "13px -apple-system, sans-serif";
     ctx.textAlign = "center";
@@ -148,7 +165,6 @@ function draw() {
     }
   }
 
-  // preview label while actively dragging a new segment
   if (dragging && mode === "draw" && dragPreview && pts.length) {
     const last = pts[pts.length - 1];
     const a = worldToScreen(last);
@@ -194,7 +210,6 @@ function onDown(e) {
     return;
   }
 
-  // draw mode
   if (!startPoint) {
     startPoint = screenToWorld(rawPos);
     draw();
@@ -223,10 +238,9 @@ function onMove(e) {
   if (mode === "edit" && editingIndex !== null) {
     const worldPos = screenToWorld(rawPos);
     const pts = points();
-    const anchor = pts[editingIndex - 1]; // fixed point before the one being dragged
+    const anchor = pts[editingIndex - 1];
 
     if (!anchor) {
-      // dragging the start point itself: translate whole shape
       startPoint = worldPos;
       draw();
       renderTable();
@@ -266,7 +280,6 @@ function onMove(e) {
 
 function onUp() {
   if (mode === "pan") { panning = false; return; }
-
   if (mode === "edit") { editingIndex = null; return; }
 
   if (mode === "draw" && dragging) {
@@ -359,12 +372,16 @@ function renderTable() {
   empty.style.display = segments.length ? "none" : "block";
 
   segments.forEach((seg, i) => {
-    const magnitude = Math.abs(seg.rel_angle_deg);
+    const isFirst = i === 0;
+    const angleValue = displayAngleFor(i);
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${i + 1}</td>
       <td><input type="number" step="0.1" value="${seg.length_mm}" data-idx="${i}" class="lenInput"></td>
-      <td><input type="number" min="5" max="180" step="1" value="${magnitude}" data-idx="${i}" class="angleInput"></td>
+      <td>
+        <input type="number" min="0" max="180" step="1" value="${angleValue}"
+          data-idx="${i}" class="angleInput" ${isFirst ? "disabled title=\"Start direction — not a bend\"" : ""}>
+      </td>
       <td><button data-idx="${i}" class="delBtn">✕</button></td>
     `;
     body.appendChild(tr);
@@ -380,20 +397,19 @@ function renderTable() {
 
   document.querySelectorAll(".angleInput").forEach(input => {
     input.addEventListener("input", (e) => {
-      const idx = e.target.dataset.idx;
-      let magnitude = parseFloat(e.target.value);
-      if (isNaN(magnitude)) return;
-      magnitude = Math.min(Math.max(magnitude, 5), 180); // clamp 5-180
+      const idx = parseInt(e.target.dataset.idx);
+      if (idx === 0) return; // locked
+      let interior = parseFloat(e.target.value);
+      if (isNaN(interior)) return;
+      interior = Math.min(Math.max(interior, 0), 180);
 
-      const currentSign = Math.sign(segments[idx].rel_angle_deg) || 1;
-      segments[idx].rel_angle_deg = (magnitude === 180) ? 180 : magnitude * currentSign;
-
+      segments[idx].rel_angle_deg = interiorToTurn(interior, segments[idx].rel_angle_deg);
       draw();
     });
 
     input.addEventListener("blur", (e) => {
-      const idx = e.target.dataset.idx;
-      e.target.value = Math.abs(segments[idx].rel_angle_deg);
+      const idx = parseInt(e.target.dataset.idx);
+      e.target.value = displayAngleFor(idx);
     });
   });
 
@@ -457,12 +473,14 @@ document.getElementById("exportPdfBtn").addEventListener("click", () => {
 
   let y = 22 + imgHeight + 10;
   doc.setFontSize(12);
-  doc.text("Segment breakdown (turn angle relative to previous):", 15, y);
+  doc.text("Segment breakdown (interior angle of bend):", 15, y);
   y += 7;
 
   segments.forEach((seg, i) => {
     doc.setFontSize(10);
-    doc.text(`${i + 1}. ${seg.length_mm} mm, turn ${Math.abs(seg.rel_angle_deg)}°`, 15, y);
+    const angle = displayAngleFor(i);
+    const label = i === 0 ? "start (no bend)" : `${angle}°`;
+    doc.text(`${i + 1}. ${seg.length_mm} mm, ${label}`, 15, y);
     y += 6;
   });
 
