@@ -5,7 +5,7 @@ const SNAP_DEG = 45;
 const HIT_RADIUS = 20; // screen px
 
 let startPoint = null;       // world coords {x,y}
-let segments = [];           // [{length_mm, rel_angle_deg}]
+let segments = [];           // [{length_mm, rel_angle_deg}]  rel_angle_deg in -180..180
 let mode = "draw";           // draw | edit | pan
 let scale = 1;
 let offsetX = 0, offsetY = 0;
@@ -45,8 +45,9 @@ function points() {
 }
 
 function snapRel(deg) {
-  let d = ((deg % 360) + 360) % 360;
+  let d = ((deg % 360) + 360) % 360;       // normalize to 0-360
   let snapped = Math.round(d / SNAP_DEG) * SNAP_DEG % 360;
+  if (snapped > 180) snapped -= 360;        // shift to -180..180
   return snapped;
 }
 
@@ -70,6 +71,7 @@ function getRawCanvasPos(e) {
 }
 
 // ---------- drawing ----------
+
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
@@ -128,7 +130,6 @@ function draw() {
       const midX = (a.x + b.x) / 2;
       const midY = (a.y + b.y) / 2;
 
-      // offset the label perpendicular to the segment so it doesn't sit on the line
       const dx = b.x - a.x, dy = b.y - a.y;
       const len = Math.hypot(dx, dy) || 1;
       const nx = -dy / len, ny = dx / len;
@@ -139,7 +140,6 @@ function draw() {
       const text = `${segments[i].length_mm} mm`;
       const textWidth = ctx.measureText(text).width;
 
-      // background pill for readability
       ctx.fillStyle = "rgba(255,255,255,0.9)";
       ctx.fillRect(labelX - textWidth / 2 - 4, labelY - 9, textWidth + 8, 18);
 
@@ -224,6 +224,7 @@ function onMove(e) {
     const worldPos = screenToWorld(rawPos);
     const pts = points();
     const anchor = pts[editingIndex - 1]; // fixed point before the one being dragged
+
     if (!anchor) {
       // dragging the start point itself: translate whole shape
       startPoint = worldPos;
@@ -231,6 +232,7 @@ function onMove(e) {
       renderTable();
       return;
     }
+
     const dirs = cumulativeDirs();
     const prevDirRef = editingIndex - 2 >= 0 ? dirs[editingIndex - 2] : 0;
     const rawAngle = (Math.atan2(worldPos.y - anchor.y, worldPos.x - anchor.x) * 180) / Math.PI;
@@ -357,17 +359,12 @@ function renderTable() {
   empty.style.display = segments.length ? "none" : "block";
 
   segments.forEach((seg, i) => {
+    const magnitude = Math.abs(seg.rel_angle_deg);
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${i + 1}</td>
       <td><input type="number" step="0.1" value="${seg.length_mm}" data-idx="${i}" class="lenInput"></td>
-      <td>
-        <select data-idx="${i}" class="angleInput">
-          ${[0,45,90,135,180,225,270,315].map(a =>
-            `<option value="${a}" ${a === seg.rel_angle_deg ? "selected" : ""}>${a}°</option>`
-          ).join("")}
-        </select>
-      </td>
+      <td><input type="number" min="5" max="180" step="1" value="${magnitude}" data-idx="${i}" class="angleInput"></td>
       <td><button data-idx="${i}" class="delBtn">✕</button></td>
     `;
     body.appendChild(tr);
@@ -381,10 +378,22 @@ function renderTable() {
     });
   });
 
-  document.querySelectorAll(".angleInput").forEach(select => {
-    select.addEventListener("change", (e) => {
-      segments[e.target.dataset.idx].rel_angle_deg = parseInt(e.target.value);
+  document.querySelectorAll(".angleInput").forEach(input => {
+    input.addEventListener("input", (e) => {
+      const idx = e.target.dataset.idx;
+      let magnitude = parseFloat(e.target.value);
+      if (isNaN(magnitude)) return;
+      magnitude = Math.min(Math.max(magnitude, 5), 180); // clamp 5-180
+
+      const currentSign = Math.sign(segments[idx].rel_angle_deg) || 1;
+      segments[idx].rel_angle_deg = (magnitude === 180) ? 180 : magnitude * currentSign;
+
       draw();
+    });
+
+    input.addEventListener("blur", (e) => {
+      const idx = e.target.dataset.idx;
+      e.target.value = Math.abs(segments[idx].rel_angle_deg);
     });
   });
 
@@ -453,7 +462,7 @@ document.getElementById("exportPdfBtn").addEventListener("click", () => {
 
   segments.forEach((seg, i) => {
     doc.setFontSize(10);
-    doc.text(`${i + 1}. ${seg.length_mm} mm, turn ${seg.rel_angle_deg}°`, 15, y);
+    doc.text(`${i + 1}. ${seg.length_mm} mm, turn ${Math.abs(seg.rel_angle_deg)}°`, 15, y);
     y += 6;
   });
 
