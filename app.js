@@ -70,7 +70,6 @@ function getRawCanvasPos(e) {
 }
 
 // ---------- drawing ----------
-
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
@@ -101,7 +100,7 @@ function draw() {
     ctx.stroke();
 
     ctx.fillStyle = "#111";
-    pts.forEach((p, i) => {
+    pts.forEach((p) => {
       ctx.beginPath();
       ctx.arc(p.x, p.y, 5 / scale, 0, Math.PI * 2);
       ctx.fill();
@@ -116,6 +115,56 @@ function draw() {
   }
 
   ctx.restore();
+
+  // --- length labels, drawn in screen space so text size is constant ---
+  if (pts.length > 1) {
+    ctx.font = "13px -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    for (let i = 0; i < segments.length; i++) {
+      const a = worldToScreen(pts[i]);
+      const b = worldToScreen(pts[i + 1]);
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+
+      // offset the label perpendicular to the segment so it doesn't sit on the line
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len, ny = dx / len;
+      const offset = 14;
+      const labelX = midX + nx * offset;
+      const labelY = midY + ny * offset;
+
+      const text = `${segments[i].length_mm} mm`;
+      const textWidth = ctx.measureText(text).width;
+
+      // background pill for readability
+      ctx.fillStyle = "rgba(255,255,255,0.9)";
+      ctx.fillRect(labelX - textWidth / 2 - 4, labelY - 9, textWidth + 8, 18);
+
+      ctx.fillStyle = "#111";
+      ctx.fillText(text, labelX, labelY);
+    }
+  }
+
+  // preview label while actively dragging a new segment
+  if (dragging && mode === "draw" && dragPreview && pts.length) {
+    const last = pts[pts.length - 1];
+    const a = worldToScreen(last);
+    const b = worldToScreen(dragPreview);
+    const midX = (a.x + b.x) / 2;
+    const midY = (a.y + b.y) / 2;
+    const dist = Math.hypot(dragPreview.x - last.x, dragPreview.y - last.y);
+    const lengthMM = Math.round((dist / PX_PER_MM) * 10) / 10;
+
+    const text = `${lengthMM} mm`;
+    const textWidth = ctx.measureText(text).width;
+    ctx.fillStyle = "rgba(59,130,246,0.9)";
+    ctx.fillRect(midX - textWidth / 2 - 4, midY - 9, textWidth + 8, 18);
+    ctx.fillStyle = "#fff";
+    ctx.fillText(text, midX, midY);
+  }
 }
 
 // ---------- pointer handling ----------
