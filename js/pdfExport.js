@@ -1,4 +1,4 @@
-import { state, parseRunLengths, getActive } from "./state.js";
+import { getActiveProject, parseRunLengths } from "./state.js";
 import { canvas } from "./canvas.js";
 import { renderFlashingThumbnail } from "./renderer.js";
 import { displayAngleFor } from "./geometry.js";
@@ -8,12 +8,13 @@ export function initExport() {
     const url = canvas.toDataURL("image/png");
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${(getActive()?.name || "flashing").replace(/\s+/g, "_")}.png`;
+    a.download = "flashing.png";
     a.click();
   });
 
   document.getElementById("exportAllPdfBtn").addEventListener("click", () => {
-    if (!state.flashings.length) {
+    const project = getActiveProject();
+    if (!project || !project.flashings.length) {
       alert("Add at least one flashing first.");
       return;
     }
@@ -28,11 +29,17 @@ export function initExport() {
 
     let y = margin;
     doc.setFontSize(16);
-    doc.text("Flashing Schedule", margin, y);
-    y += 10;
+    doc.setTextColor(20);
+    doc.setFont(undefined, "bold").text("Cams Flashing Tool", margin, y)
+    y += 8;
+    doc.setFont(undefined, "normal").text(project.name || "Flashing Schedule", margin, y);
+    y += 7;
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`P/O Number: ${project.poNumber || "—"}`, margin, y);
+    y += 8;
 
-    state.flashings.forEach((f) => {
-      // footer grows with segment count, since the segment list is now a right-hand column
+    project.flashings.forEach((f) => {
       const segLines = Math.max(f.segments.length, 1);
       const footerHeight = 6 + segLines * 5 + 6;
       const boxHeight = 12 + boxImageHeight + footerHeight;
@@ -46,7 +53,6 @@ export function initExport() {
       doc.setLineWidth(0.4);
       doc.rect(margin, y, boxWidth, boxHeight);
 
-      // header: name left, colour name right
       doc.setFontSize(12);
       doc.setTextColor(20);
       doc.text(f.name || "Untitled", margin + 6, y + 9);
@@ -56,21 +62,18 @@ export function initExport() {
       const colourLabel = f.colourName ? `Colour: ${f.colourName}` : "Colour: —";
       doc.text(colourLabel, boxWidth + margin - 4, y + 9, { align: "right" });
 
-      // profile image
       const thumb = renderFlashingThumbnail(f, 700, 260);
       const imgData = thumb.toDataURL("image/png");
       const imgW = boxWidth - 20;
       const imgH = boxImageHeight - 4;
       doc.addImage(imgData, "PNG", margin + 10, y + 13, imgW, imgH);
 
-      // --- footer: two columns ---
       const footerY = y + 13 + imgH + 6;
       const colGap = 8;
       const leftColX = margin + 6;
       const rightColX = margin + boxWidth / 2 + colGap;
       const leftColMaxWidth = boxWidth / 2 - colGap - 6;
 
-      // left column: total girth + required lengths
       doc.setFontSize(9);
       doc.setTextColor(60);
 
@@ -79,12 +82,11 @@ export function initExport() {
 
       const parsedLengths = parseRunLengths(f.run_lengths_raw);
       const reqLengthsStr = parsedLengths.length
-        ? parsedLengths.map(p => `${p.qty} × ${p.length}`).join(", ")
+        ? parsedLengths.map(p => `${p.qty} / ${p.length} m`).join(", ")
         : "—";
       doc.text("Required lengths:", leftColX, footerY + 7);
       doc.text(doc.splitTextToSize(reqLengthsStr, leftColMaxWidth), leftColX, footerY + 12);
 
-      // right column: segment breakdown (length + interior angle)
       doc.setFontSize(9);
       doc.setTextColor(60);
       doc.text("Segments (length @ angle):", rightColX, footerY);
@@ -93,8 +95,7 @@ export function initExport() {
         f.segments.forEach((seg, i) => {
           const angle = displayAngleFor(f, i);
           const angleLabel = i === 0 ? "start" : `${angle}°`;
-          const line = `${i + 1}. ${seg.length_mm} mm @ ${angleLabel}`;
-          doc.text(line, rightColX, footerY + 5 + i * 5);
+          doc.text(`${i + 1}. ${seg.length_mm} mm @ ${angleLabel}`, rightColX, footerY + 5 + i * 5);
         });
       } else {
         doc.setTextColor(150);
@@ -104,6 +105,7 @@ export function initExport() {
       y += boxHeight + 8;
     });
 
-    doc.save("flashing-schedule.pdf");
+    const filename = (project.name || "flashing-schedule").replace(/\s+/g, "_");
+    doc.save(`${filename}.pdf`);
   });
 }

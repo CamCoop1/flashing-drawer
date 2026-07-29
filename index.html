@@ -8,9 +8,40 @@
 </head>
 <body>
 
-<div class="app">
+<div id="menuView" class="view active">
+  <div class="menu-wrap">
+    <div class="menu-header">
+      <h1>Flashing Projects</h1>
+      <button id="newProjectBtn" class="primary">+ New Project</button>
+    </div>
+
+    <div id="newProjectForm" class="new-project-form" style="display:none;">
+      <label>Project Name
+        <input type="text" id="npName" placeholder="e.g. 24 Smith Street">
+      </label>
+      <label>P/O Number
+        <input type="text" id="npPO" placeholder="e.g. PO-10234">
+      </label>
+      <div class="form-actions">
+        <button id="npCancelBtn">Cancel</button>
+        <button id="npCreateBtn" class="primary">Create</button>
+      </div>
+    </div>
+
+    <div id="projectList" class="project-list"></div>
+    <p class="empty-hint" id="projectEmpty">No projects yet — click "+ New Project" to start one.</p>
+  </div>
+</div>
+
+<div id="editorView" class="view">
   <header>
-    <h1>Flashing Profile Drawer</h1>
+    <div class="editor-title">
+      <button id="backToMenuBtn" class="icon-btn">←</button>
+      <div>
+        <h1 id="projectTitle">Project</h1>
+        <p id="projectSubtitle" class="project-subtitle"></p>
+      </div>
+    </div>
     <div class="toolbar">
       <div class="mode-group">
         <button id="modeDraw" class="mode-btn active">Draw</button>
@@ -50,6 +81,14 @@
         <label>Colour name
           <input type="text" id="fColourName" placeholder="e.g. Monument">
         </label>
+        <div class="side-toggle-wrap">
+          <span class="side-toggle-caption">Coloured side</span>
+          <button id="colouredSideToggle" class="side-toggle-btn" type="button" title="Click to flip which side is coloured">
+            <span id="arrowLeft" class="side-arrow">◀</span>
+            <span class="side-line"></span>
+            <span id="arrowRight" class="side-arrow">▶</span>
+          </button>
+        </div>
         <label>Flashing lengths (qty/length)
           <input type="text" id="fRunLengths" placeholder="e.g. 1/3.000 2/2.450">
         </label>

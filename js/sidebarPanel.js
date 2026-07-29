@@ -1,4 +1,4 @@
-import { state, makeFlashing, parseRunLengths, getActive } from "./state.js";
+import { state, makeFlashing, parseRunLengths, getActive, getActiveProject, saveProjects } from "./state.js";
 import { draw, fitViewToActive } from "./renderer.js";
 import { renderTable } from "./segmentTable.js";
 import { updateHint } from "./interactions.js";
@@ -10,17 +10,19 @@ function escapeHtml(str) {
 }
 
 export function renderFlashingList() {
+  const project = getActiveProject();
   const list = document.getElementById("flashingList");
   list.innerHTML = "";
 
-  if (!state.flashings.length) {
+  if (!project || !project.flashings.length) {
     list.innerHTML = `<p class="flashing-empty">No flashings yet — click "+ New" to add one.</p>`;
+    return;
   }
 
-  state.flashings.forEach(f => {
+  project.flashings.forEach(f => {
     const girth = f.segments.reduce((sum, s) => sum + s.length_mm, 0);
     const item = document.createElement("div");
-    item.className = "flashing-item" + (f.id === state.activeId ? " active" : "");
+    item.className = "flashing-item" + (f.id === state.activeFlashingId ? " active" : "");
     item.innerHTML = `
       <div class="swatch" style="background:${f.colourHex}"></div>
       <div class="info">
@@ -42,7 +44,7 @@ export function renderFlashingList() {
 }
 
 export function selectFlashing(id) {
-  state.activeId = id;
+  state.activeFlashingId = id;
   renderFlashingList();
   syncDetailPanel();
   renderTable();
@@ -51,11 +53,14 @@ export function selectFlashing(id) {
 }
 
 export function deleteFlashing(id) {
+  const project = getActiveProject();
+  if (!project) return;
   if (!confirm("Delete this flashing?")) return;
-  state.flashings = state.flashings.filter(f => f.id !== id);
-  if (state.activeId === id) {
-    state.activeId = state.flashings.length ? state.flashings[0].id : null;
+  project.flashings = project.flashings.filter(f => f.id !== id);
+  if (state.activeFlashingId === id) {
+    state.activeFlashingId = project.flashings.length ? project.flashings[0].id : null;
   }
+  saveProjects();
   renderFlashingList();
   syncDetailPanel();
   renderTable();
@@ -73,6 +78,30 @@ function updateLengthsPreview(rawStr) {
   preview.textContent = "Parsed: " + parsed.map(p => `${p.qty} × ${p.length}`).join(", ");
 }
 
+function updateSideToggleUI(flashing) {
+  const arrowLeft = document.getElementById("arrowLeft");
+  const arrowRight = document.getElementById("arrowRight");
+  const caption = document.querySelector(".side-toggle-caption");
+
+  if (!flashing) {
+    arrowLeft.classList.remove("active");
+    arrowRight.classList.remove("active");
+    if (caption) caption.textContent = "Coloured side";
+    return;
+  }
+
+  const side = flashing.colouredSide;
+  arrowRight.classList.toggle("active", side === 1);
+  arrowLeft.classList.toggle("active", side === -1);
+
+  if (caption) {
+    caption.textContent =
+      side === 1 ? "Coloured side: right" :
+      side === -1 ? "Coloured side: left" :
+      "Coloured side: none";
+  }
+}
+
 export function syncDetailPanel() {
   const active = getActive();
   const panel = document.getElementById("detailPanel");
@@ -82,6 +111,7 @@ export function syncDetailPanel() {
     panel.style.opacity = "0.5";
     fields.forEach(id => document.getElementById(id).value = "");
     document.getElementById("lengthsPreview").textContent = "";
+    updateSideToggleUI(null);
     return;
   }
   panel.style.opacity = "1";
@@ -89,12 +119,16 @@ export function syncDetailPanel() {
   document.getElementById("fColourName").value = active.colourName;
   document.getElementById("fRunLengths").value = active.run_lengths_raw || "";
   updateLengthsPreview(active.run_lengths_raw || "");
+  updateSideToggleUI(active);
 }
 
 export function initSidebarPanel() {
   document.getElementById("addFlashingBtn").addEventListener("click", () => {
-    const f = makeFlashing();
-    state.flashings.push(f);
+    const project = getActiveProject();
+    if (!project) return;
+    const f = makeFlashing(project);
+    project.flashings.push(f);
+    saveProjects();
     selectFlashing(f.id);
   });
 
@@ -103,12 +137,14 @@ export function initSidebarPanel() {
     if (!active) return;
     active.name = e.target.value;
     renderFlashingList();
+    saveProjects();
   });
 
   document.getElementById("fColourName").addEventListener("input", (e) => {
     const active = getActive();
     if (!active) return;
     active.colourName = e.target.value;
+    saveProjects();
   });
 
   document.getElementById("fRunLengths").addEventListener("input", (e) => {
@@ -116,5 +152,22 @@ export function initSidebarPanel() {
     if (!active) return;
     active.run_lengths_raw = e.target.value;
     updateLengthsPreview(e.target.value);
+    saveProjects();
+  });
+
+  document.getElementById("colouredSideToggle").addEventListener("click", () => {
+    const active = getActive();
+    if (!active) return;
+    // cycle: none -> right (1) -> left (-1) -> none
+    if (active.colouredSide === null || active.colouredSide === undefined) {
+      active.colouredSide = 1;
+    } else if (active.colouredSide === 1) {
+      active.colouredSide = -1;
+    } else {
+      active.colouredSide = null;
+    }
+    updateSideToggleUI(active);
+    draw();
+    saveProjects();
   });
 }

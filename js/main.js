@@ -1,24 +1,15 @@
-import { state, makeFlashing } from "./state.js";
-import { draw } from "./renderer.js";
-import { renderTable } from "./segmentTable.js";
-import { renderFlashingList, syncDetailPanel, initSidebarPanel } from "./sidebarPanel.js";
-import { initInteractions, updateHint } from "./interactions.js";
+import { initProjectsPanel } from "./projectsPanel.js";
+import { initSidebarPanel } from "./sidebarPanel.js";
+import { initInteractions } from "./interactions.js";
 import { initExport } from "./pdfExport.js";
+import { showView } from "./views.js";
 
 function init() {
+  initProjectsPanel();
   initSidebarPanel();
   initInteractions();
   initExport();
-
-  const first = makeFlashing();
-  state.flashings.push(first);
-  state.activeId = first.id;
-
-  renderFlashingList();
-  syncDetailPanel();
-  renderTable();
-  draw();
-  updateHint();
+  showView("menu");
 }
 
 init();

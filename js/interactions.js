@@ -1,5 +1,5 @@
 import { canvas } from "./canvas.js";
-import { state, PX_PER_MM, getActive } from "./state.js";
+import { state, PX_PER_MM, getActive, saveProjects } from "./state.js";
 import { points, cumulativeDirs, snapRel, worldToScreen, screenToWorld, getRawCanvasPos } from "./geometry.js";
 import { draw, fitViewToActive } from "./renderer.js";
 import { renderTable } from "./segmentTable.js";
@@ -7,7 +7,7 @@ import { renderFlashingList } from "./sidebarPanel.js";
 
 const HIT_RADIUS = 20;
 
-let previousMode = null;   // mode to restore to after middle-click pan ends
+let previousMode = null;
 let middlePanActive = false;
 
 function nearestVertex(rawPos) {
@@ -22,7 +22,6 @@ function nearestVertex(rawPos) {
 function onDown(e) {
   const rawPos = getRawCanvasPos(e, canvas);
 
-  // Middle mouse button (scroll wheel click): temporarily switch to Pan
   if (e.button === 1) {
     e.preventDefault();
     middlePanActive = true;
@@ -122,14 +121,15 @@ function onMove(e) {
   }
 }
 
-function onUp(e) {
+function onUp() {
   const active = getActive();
 
-  if (state.mode === "pan") {
-    state.panning = false;
+  if (state.mode === "pan") { state.panning = false; return; }
+  if (state.mode === "edit") {
+    if (state.editingIndex !== null) saveProjects();
+    state.editingIndex = null;
     return;
   }
-  if (state.mode === "edit") { state.editingIndex = null; return; }
 
   if (state.mode === "draw" && state.dragging && active) {
     const pts = points();
@@ -145,6 +145,7 @@ function onUp(e) {
       active.segments.push({ length_mm: lengthMM, rel_angle_deg: relAngle });
       renderTable();
       renderFlashingList();
+      saveProjects();
     }
     state.dragging = false;
     state.dragPreview = null;
@@ -185,13 +186,8 @@ export function initInteractions() {
   canvas.addEventListener("mousemove", onMove);
   canvas.addEventListener("mouseup", onUp);
   canvas.addEventListener("mouseleave", onUp);
-
-  // Prevent the browser's default middle-click behavior (autoscroll icon, etc.)
   canvas.addEventListener("auxclick", (e) => { if (e.button === 1) e.preventDefault(); });
 
-  // Restore the previous tool when the middle button is released — listened
-  // on window (not just canvas) so it still fires if the cursor drifted
-  // outside the canvas while panning.
   window.addEventListener("mouseup", (e) => {
     if (e.button === 1 && middlePanActive) {
       middlePanActive = false;
@@ -241,6 +237,7 @@ export function initInteractions() {
     renderTable();
     draw();
     renderFlashingList();
+    saveProjects();
   });
 
   document.getElementById("clearShapeBtn").addEventListener("click", () => {
@@ -253,5 +250,6 @@ export function initInteractions() {
     draw();
     renderFlashingList();
     updateHint();
+    saveProjects();
   });
 }
