@@ -237,7 +237,7 @@ export function renderFlashingThumbnail(flashing, pxWidth, pxHeight) {
     const len = Math.hypot(dx, dy) || 1;
     const nx = -dy / len, ny = dx / len;
     const labelX = midX + nx * 12, labelY = midY + ny * 12;
-    const text = `${flashing.segments[i].length_mm}`;
+    const text = `${flashing.segments[i].length_mm} mm`;
     const tw = octx.measureText(text).width;
     octx.fillStyle = "rgba(255,255,255,0.9)";
     octx.fillRect(labelX - tw / 2 - 3, labelY - 8, tw + 6, 16);
