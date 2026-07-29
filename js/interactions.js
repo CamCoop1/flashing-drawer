@@ -1,11 +1,14 @@
 import { canvas } from "./canvas.js";
-import { state, PX_PER_MM, getActive } from "./state.js";
+import { state, PX_PER_MM, getActive, saveProjects } from "./state.js";
 import { points, cumulativeDirs, snapRel, worldToScreen, screenToWorld, getRawCanvasPos } from "./geometry.js";
 import { draw, fitViewToActive } from "./renderer.js";
 import { renderTable } from "./segmentTable.js";
 import { renderFlashingList } from "./sidebarPanel.js";
 
 const HIT_RADIUS = 20;
+
+let previousMode = null;
+let middlePanActive = false;
 
 function nearestVertex(rawPos) {
   const pts = points();
@@ -17,9 +20,21 @@ function nearestVertex(rawPos) {
 }
 
 function onDown(e) {
+  const rawPos = getRawCanvasPos(e, canvas);
+
+  if (e.button === 1) {
+    e.preventDefault();
+    middlePanActive = true;
+    if (previousMode === null) previousMode = state.mode;
+    setMode("pan");
+    state.panning = true;
+    state.panStart = rawPos;
+    state.panOffsetStart = { x: state.offsetX, y: state.offsetY };
+    return;
+  }
+
   const active = getActive();
   if (!active) return;
-  const rawPos = getRawCanvasPos(e, canvas);
 
   if (state.mode === "pan") {
     state.panning = true;
@@ -52,7 +67,6 @@ function onDown(e) {
 
 function onMove(e) {
   const active = getActive();
-  if (!active) return;
   const rawPos = getRawCanvasPos(e, canvas);
 
   if (state.mode === "pan" && state.panning) {
@@ -61,6 +75,8 @@ function onMove(e) {
     draw();
     return;
   }
+
+  if (!active) return;
 
   if (state.mode === "edit" && state.editingIndex !== null) {
     const worldPos = screenToWorld(rawPos);
@@ -107,8 +123,13 @@ function onMove(e) {
 
 function onUp() {
   const active = getActive();
+
   if (state.mode === "pan") { state.panning = false; return; }
-  if (state.mode === "edit") { state.editingIndex = null; return; }
+  if (state.mode === "edit") {
+    if (state.editingIndex !== null) saveProjects();
+    state.editingIndex = null;
+    return;
+  }
 
   if (state.mode === "draw" && state.dragging && active) {
     const pts = points();
@@ -124,6 +145,7 @@ function onUp() {
       active.segments.push({ length_mm: lengthMM, rel_angle_deg: relAngle });
       renderTable();
       renderFlashingList();
+      saveProjects();
     }
     state.dragging = false;
     state.dragPreview = null;
@@ -142,6 +164,10 @@ function setMode(m) {
 export function updateHint() {
   const hint = document.getElementById("hint");
   const active = getActive();
+  if (middlePanActive) {
+    hint.textContent = "Panning (scroll-wheel held) — release to return to your previous tool.";
+    return;
+  }
   if (!active) {
     hint.textContent = "Add a flashing on the right, then click the canvas to start drawing.";
   } else if (state.mode === "pan") {
@@ -160,6 +186,21 @@ export function initInteractions() {
   canvas.addEventListener("mousemove", onMove);
   canvas.addEventListener("mouseup", onUp);
   canvas.addEventListener("mouseleave", onUp);
+  canvas.addEventListener("auxclick", (e) => { if (e.button === 1) e.preventDefault(); });
+
+  window.addEventListener("mouseup", (e) => {
+    if (e.button === 1 && middlePanActive) {
+      middlePanActive = false;
+      state.panning = false;
+      if (previousMode !== null) {
+        setMode(previousMode);
+        previousMode = null;
+      } else {
+        updateHint();
+      }
+    }
+  });
+
   canvas.addEventListener("touchstart", (e) => { e.preventDefault(); onDown(e); });
   canvas.addEventListener("touchmove", (e) => { e.preventDefault(); onMove(e); });
   canvas.addEventListener("touchend", (e) => { e.preventDefault(); onUp(e); });
@@ -196,6 +237,7 @@ export function initInteractions() {
     renderTable();
     draw();
     renderFlashingList();
+    saveProjects();
   });
 
   document.getElementById("clearShapeBtn").addEventListener("click", () => {
@@ -208,5 +250,6 @@ export function initInteractions() {
     draw();
     renderFlashingList();
     updateHint();
+    saveProjects();
   });
 }

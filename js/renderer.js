@@ -2,6 +2,53 @@ import { canvas, ctx } from "./canvas.js";
 import { state, PX_PER_MM, getActive } from "./state.js";
 import { points, pointsFor, worldToScreen, screenToWorld } from "./geometry.js";
 
+function drawSideArrowsScreenSpace(targetCtx, flashing, screenPts, offsetDist) {
+  const side = flashing.colouredSide;
+  if (side !== 1 && side !== -1) return; // "none" selected — draw nothing
+
+  const stemLength = 22;    // gap between the profile line and the arrowhead
+  const arrowLength = 14;   // length of the arrowhead triangle itself
+  const arrowWidth = 7;     // half-width of the arrowhead base
+
+  targetCtx.fillStyle = "#ff0000";
+  targetCtx.strokeStyle = "#ff0000";
+  targetCtx.lineWidth = 4;
+
+  for (let i = 0; i < flashing.segments.length; i++) {
+    const a = screenPts[i];
+    const b = screenPts[i + 1];
+    const midX = (a.x + b.x) / 2;
+    const midY = (a.y + b.y) / 2;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = (-dy / len) * side;
+    const ny = (dx / len) * side;
+
+    // stem: from the profile line out to where the arrowhead starts
+    const stemStartX = midX + nx * offsetDist;
+    const stemStartY = midY + ny * offsetDist;
+    const stemEndX = midX + nx * (offsetDist + stemLength);
+    const stemEndY = midY + ny * (offsetDist + stemLength);
+
+    targetCtx.beginPath();
+    targetCtx.moveTo(stemStartX, stemStartY);
+    targetCtx.lineTo(stemEndX, stemEndY);
+    targetCtx.stroke();
+
+    // arrowhead: triangle continuing past the end of the stem
+    const tipX = midX + nx * (offsetDist + stemLength + arrowLength);
+    const tipY = midY + ny * (offsetDist + stemLength + arrowLength);
+    const px = -dy / len, py = dx / len;
+
+    targetCtx.beginPath();
+    targetCtx.moveTo(tipX, tipY);
+    targetCtx.lineTo(stemEndX + px * arrowWidth, stemEndY + py * arrowWidth);
+    targetCtx.lineTo(stemEndX - px * arrowWidth, stemEndY - py * arrowWidth);
+    targetCtx.closePath();
+    targetCtx.fill();
+  }
+}
+
 export function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.save();
@@ -57,9 +104,11 @@ export function draw() {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
+    const screenPts = pts.map(worldToScreen);
+
     for (let i = 0; i < active.segments.length; i++) {
-      const a = worldToScreen(pts[i]);
-      const b = worldToScreen(pts[i + 1]);
+      const a = screenPts[i];
+      const b = screenPts[i + 1];
       const midX = (a.x + b.x) / 2;
       const midY = (a.y + b.y) / 2;
       const dx = b.x - a.x, dy = b.y - a.y;
@@ -76,6 +125,8 @@ export function draw() {
       ctx.fillStyle = "#111";
       ctx.fillText(text, labelX, labelY);
     }
+
+    drawSideArrowsScreenSpace(ctx, active, screenPts, 20);
   }
 
   if (state.dragging && state.mode === "draw" && state.dragPreview && pts.length) {
@@ -153,7 +204,7 @@ export function renderFlashingThumbnail(flashing, pxWidth, pxHeight) {
   const minY = Math.min(...ys), maxY = Math.max(...ys);
   const w = Math.max(maxX - minX, 1);
   const h = Math.max(maxY - minY, 1);
-  const pad = 40;
+  const pad = 44;
   const fitScale = Math.min((pxWidth - pad * 2) / w, (pxHeight - pad * 2) / h);
   const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
   const ox = pxWidth / 2 - cx * fitScale;
@@ -193,6 +244,8 @@ export function renderFlashingThumbnail(flashing, pxWidth, pxHeight) {
     octx.fillStyle = "#111";
     octx.fillText(text, labelX, labelY);
   }
+
+  drawSideArrowsScreenSpace(octx, flashing, localPts, 16);
 
   return off;
 }

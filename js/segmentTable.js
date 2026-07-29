@@ -1,4 +1,4 @@
-import { getActive } from "./state.js";
+import { getActive, saveProjects } from "./state.js";
 import { displayAngleFor, interiorToTurn } from "./geometry.js";
 import { draw } from "./renderer.js";
 import { renderFlashingList } from "./sidebarPanel.js";
@@ -41,6 +41,7 @@ export function renderTable() {
       draw();
       updateTotal();
     });
+    input.addEventListener("change", saveProjects);
   });
 
   document.querySelectorAll(".angleInput").forEach(input => {
@@ -57,6 +58,7 @@ export function renderTable() {
       const idx = parseInt(e.target.dataset.idx);
       e.target.value = displayAngleFor(active, idx);
     });
+    input.addEventListener("change", saveProjects);
   });
 
   document.querySelectorAll(".delBtn").forEach(btn => {
@@ -66,6 +68,7 @@ export function renderTable() {
       draw();
       updateTotal();
       renderFlashingList();
+      saveProjects();
     });
   });
 

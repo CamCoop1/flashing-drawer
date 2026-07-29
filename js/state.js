@@ -3,9 +3,12 @@ export const SNAP_DEG = 45;
 export const HIT_RADIUS = 20;
 export const PALETTE = ["#3b82f6", "#ef4444", "#22c55e", "#f59e0b", "#a855f7", "#06b6d4", "#ec4899"];
 
+const STORAGE_KEY = "flashingProjects";
+
 export const state = {
-  flashings: [],
-  activeId: null,
+  projects: [],
+  activeProjectId: null,
+  activeFlashingId: null,
   mode: "draw",
   scale: 1,
   offsetX: 0,
@@ -18,25 +21,39 @@ export const state = {
   panOffsetStart: null,
 };
 
-export function getActive() {
-  return state.flashings.find(f => f.id === state.activeId) || null;
+export function getActiveProject() {
+  return state.projects.find(p => p.id === state.activeProjectId) || null;
 }
 
-export function makeFlashing() {
-  const n = state.flashings.length + 1;
+export function getActive() {
+  const project = getActiveProject();
+  if (!project) return null;
+  return project.flashings.find(f => f.id === state.activeFlashingId) || null;
+}
+
+export function makeProject(name, poNumber) {
+  return {
+    id: crypto.randomUUID(),
+    name: name || "Untitled Project",
+    poNumber: poNumber || "",
+    flashings: [],
+  };
+}
+
+export function makeFlashing(project) {
+  const n = (project?.flashings.length || 0) + 1;
   return {
     id: crypto.randomUUID(),
     name: `Flashing ${n}`,
     colourName: "",
-    colourHex: PALETTE[(n - 1) % PALETTE.length], // internal only, no picker UI
-    run_lengths_raw: "",   // e.g. "1/3.000 2/2.450"
+    colourHex: PALETTE[(n - 1) % PALETTE.length],
+    colouredSide: null,      // null = none, 1 = right of travel direction, -1 = left
+    run_lengths_raw: "",
     startPoint: null,
     segments: [],
   };
 }
 
-// Parses "1/3.000 2/2.450" into [{qty: 1, length: "3.000"}, {qty: 2, length: "2.450"}]
-// Length is kept as the original typed string to avoid mangling decimal notation.
 export function parseRunLengths(str) {
   if (!str) return [];
   const regex = /(\d+)\s*\/\s*([\d.]+)/g;
@@ -46,4 +63,24 @@ export function parseRunLengths(str) {
     results.push({ qty: parseInt(match[1], 10), length: match[2] });
   }
   return results;
+}
+
+export function saveProjects() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.projects));
+}
+
+export function loadProjects() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return;
+  try {
+    state.projects = JSON.parse(raw);
+    // backfill for projects/flashings saved before this feature existed
+    state.projects.forEach(p => {
+      p.flashings.forEach(f => {
+        if (f.colouredSide === undefined) f.colouredSide = 1;
+      });
+    });
+  } catch {
+    state.projects = [];
+  }
 }
