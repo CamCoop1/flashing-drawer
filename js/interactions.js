@@ -7,6 +7,9 @@ import { renderFlashingList } from "./sidebarPanel.js";
 
 const HIT_RADIUS = 20;
 
+let previousMode = null;   // mode to restore to after middle-click pan ends
+let middlePanActive = false;
+
 function nearestVertex(rawPos) {
   const pts = points();
   for (let i = 0; i < pts.length; i++) {
@@ -17,9 +20,22 @@ function nearestVertex(rawPos) {
 }
 
 function onDown(e) {
+  const rawPos = getRawCanvasPos(e, canvas);
+
+  // Middle mouse button (scroll wheel click): temporarily switch to Pan
+  if (e.button === 1) {
+    e.preventDefault();
+    middlePanActive = true;
+    if (previousMode === null) previousMode = state.mode;
+    setMode("pan");
+    state.panning = true;
+    state.panStart = rawPos;
+    state.panOffsetStart = { x: state.offsetX, y: state.offsetY };
+    return;
+  }
+
   const active = getActive();
   if (!active) return;
-  const rawPos = getRawCanvasPos(e, canvas);
 
   if (state.mode === "pan") {
     state.panning = true;
@@ -52,7 +68,6 @@ function onDown(e) {
 
 function onMove(e) {
   const active = getActive();
-  if (!active) return;
   const rawPos = getRawCanvasPos(e, canvas);
 
   if (state.mode === "pan" && state.panning) {
@@ -61,6 +76,8 @@ function onMove(e) {
     draw();
     return;
   }
+
+  if (!active) return;
 
   if (state.mode === "edit" && state.editingIndex !== null) {
     const worldPos = screenToWorld(rawPos);
@@ -105,9 +122,13 @@ function onMove(e) {
   }
 }
 
-function onUp() {
+function onUp(e) {
   const active = getActive();
-  if (state.mode === "pan") { state.panning = false; return; }
+
+  if (state.mode === "pan") {
+    state.panning = false;
+    return;
+  }
   if (state.mode === "edit") { state.editingIndex = null; return; }
 
   if (state.mode === "draw" && state.dragging && active) {
@@ -142,6 +163,10 @@ function setMode(m) {
 export function updateHint() {
   const hint = document.getElementById("hint");
   const active = getActive();
+  if (middlePanActive) {
+    hint.textContent = "Panning (scroll-wheel held) — release to return to your previous tool.";
+    return;
+  }
   if (!active) {
     hint.textContent = "Add a flashing on the right, then click the canvas to start drawing.";
   } else if (state.mode === "pan") {
@@ -160,6 +185,26 @@ export function initInteractions() {
   canvas.addEventListener("mousemove", onMove);
   canvas.addEventListener("mouseup", onUp);
   canvas.addEventListener("mouseleave", onUp);
+
+  // Prevent the browser's default middle-click behavior (autoscroll icon, etc.)
+  canvas.addEventListener("auxclick", (e) => { if (e.button === 1) e.preventDefault(); });
+
+  // Restore the previous tool when the middle button is released — listened
+  // on window (not just canvas) so it still fires if the cursor drifted
+  // outside the canvas while panning.
+  window.addEventListener("mouseup", (e) => {
+    if (e.button === 1 && middlePanActive) {
+      middlePanActive = false;
+      state.panning = false;
+      if (previousMode !== null) {
+        setMode(previousMode);
+        previousMode = null;
+      } else {
+        updateHint();
+      }
+    }
+  });
+
   canvas.addEventListener("touchstart", (e) => { e.preventDefault(); onDown(e); });
   canvas.addEventListener("touchmove", (e) => { e.preventDefault(); onMove(e); });
   canvas.addEventListener("touchend", (e) => { e.preventDefault(); onUp(e); });
