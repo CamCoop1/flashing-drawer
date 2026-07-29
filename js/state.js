@@ -14,6 +14,7 @@ export const state = {
   offsetX: 0,
   offsetY: 0,
   dragging: false,
+  dragFromStart: false,   // true when the current drag is prepending a segment at the start
   dragPreview: null,
   editingIndex: null,
   panning: false,
@@ -47,7 +48,7 @@ export function makeFlashing(project) {
     name: `Flashing ${n}`,
     colourName: "",
     colourHex: PALETTE[(n - 1) % PALETTE.length],
-    colouredSide: null,      // null = none, 1 = right of travel direction, -1 = left
+    colouredSide: null,
     run_lengths_raw: "",
     startPoint: null,
     segments: [],
@@ -74,10 +75,9 @@ export function loadProjects() {
   if (!raw) return;
   try {
     state.projects = JSON.parse(raw);
-    // backfill for projects/flashings saved before this feature existed
     state.projects.forEach(p => {
       p.flashings.forEach(f => {
-        if (f.colouredSide === undefined) f.colouredSide = 1;
+        if (f.colouredSide === undefined) f.colouredSide = null;
       });
     });
   } catch {

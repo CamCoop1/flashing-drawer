@@ -19,6 +19,13 @@ function nearestVertex(rawPos) {
   return null;
 }
 
+// Normalize any angle difference into the -180..180 range
+function normalizeAngle(deg) {
+  let d = ((deg % 360) + 360) % 360;
+  if (d > 180) d -= 360;
+  return d;
+}
+
 function onDown(e) {
   const rawPos = getRawCanvasPos(e, canvas);
 
@@ -49,6 +56,7 @@ function onDown(e) {
     return;
   }
 
+  // draw mode
   if (!active.startPoint) {
     active.startPoint = screenToWorld(rawPos);
     draw();
@@ -56,13 +64,31 @@ function onDown(e) {
     renderFlashingList();
     return;
   }
+
   const pts = points();
   const last = pts[pts.length - 1];
+  const first = pts[0];
   const lastScreen = worldToScreen(last);
-  if (Math.hypot(rawPos.x - lastScreen.x, rawPos.y - lastScreen.y) > HIT_RADIUS) return;
 
-  state.dragging = true;
-  state.dragPreview = { ...last };
+  // priority 1: grab the end point to extend as usual
+  if (Math.hypot(rawPos.x - lastScreen.x, rawPos.y - lastScreen.y) <= HIT_RADIUS) {
+    state.dragging = true;
+    state.dragFromStart = false;
+    state.dragPreview = { ...last };
+    return;
+  }
+
+  // priority 2: grab the start point to prepend a new first segment
+  // (only meaningful once there's at least one segment — otherwise start === end already handled above)
+  if (pts.length > 1) {
+    const firstScreen = worldToScreen(first);
+    if (Math.hypot(rawPos.x - firstScreen.x, rawPos.y - firstScreen.y) <= HIT_RADIUS) {
+      state.dragging = true;
+      state.dragFromStart = true;
+      state.dragPreview = { ...first };
+      return;
+    }
+  }
 }
 
 function onMove(e) {
@@ -106,6 +132,24 @@ function onMove(e) {
   if (state.mode === "draw" && state.dragging) {
     const worldPos = screenToWorld(rawPos);
     const pts = points();
+
+    if (state.dragFromStart) {
+      // Anchor is the current (fixed) start point. The dragged point becomes
+      // the NEW start; the new segment points from the new start TO the anchor.
+      const anchor = pts[0];
+      const rawAngle = (Math.atan2(anchor.y - worldPos.y, anchor.x - worldPos.x) * 180) / Math.PI;
+      const relAngle = snapRel(rawAngle); // absolute direction, since this will become segment 0
+      const dist = Math.hypot(anchor.x - worldPos.x, anchor.y - worldPos.y);
+      const rad = (relAngle * Math.PI) / 180;
+
+      state.dragPreview = {
+        x: anchor.x - dist * Math.cos(rad),
+        y: anchor.y - dist * Math.sin(rad),
+      };
+      draw();
+      return;
+    }
+
     const last = pts[pts.length - 1];
     const dirs = cumulativeDirs(active.segments);
     const prevDir = dirs.length ? dirs[dirs.length - 1] : 0;
@@ -133,6 +177,41 @@ function onUp() {
 
   if (state.mode === "draw" && state.dragging && active) {
     const pts = points();
+
+    if (state.dragFromStart) {
+      const anchor = pts[0];
+      const dist = Math.hypot(state.dragPreview.x - anchor.x, state.dragPreview.y - anchor.y);
+      const lengthMM = Math.round((dist / PX_PER_MM) * 10) / 10;
+
+      if (lengthMM >= 1) {
+        const rawAngle = (Math.atan2(anchor.y - state.dragPreview.y, anchor.x - state.dragPreview.x) * 180) / Math.PI;
+        const newFirstAbsDir = snapRel(rawAngle);
+
+        // The old first segment's stored angle was absolute (it had no "previous").
+        // Recompute it as a turn relative to the new first segment, so the
+        // rest of the shape geometrically stays exactly where it was.
+        if (active.segments.length) {
+          const oldFirstAbsDir = active.segments[0].rel_angle_deg;
+          active.segments[0].rel_angle_deg = normalizeAngle(oldFirstAbsDir - newFirstAbsDir);
+        }
+
+        active.segments.unshift({ length_mm: lengthMM, rel_angle_deg: newFirstAbsDir });
+        active.startPoint = state.dragPreview;
+
+        renderTable();
+        renderFlashingList();
+        saveProjects();
+      }
+
+      state.dragging = false;
+      state.dragFromStart = false;
+      state.dragPreview = null;
+      draw();
+      updateHint();
+      return;
+    }
+
+    // normal extend-from-end
     const last = pts[pts.length - 1];
     const dist = Math.hypot(state.dragPreview.x - last.x, state.dragPreview.y - last.y);
     const lengthMM = Math.round((dist / PX_PER_MM) * 10) / 10;
@@ -148,6 +227,7 @@ function onUp() {
       saveProjects();
     }
     state.dragging = false;
+    state.dragFromStart = false;
     state.dragPreview = null;
     draw();
     updateHint();
@@ -177,7 +257,7 @@ export function updateHint() {
   } else if (!active.startPoint) {
     hint.textContent = "Click anywhere on the canvas to place your starting point.";
   } else {
-    hint.textContent = "Drag from the end-point to draw the next segment. Snaps to 45° turns.";
+    hint.textContent = "Drag the end point to extend, or the start point to add a segment before it. Snaps to 45°.";
   }
 }
 

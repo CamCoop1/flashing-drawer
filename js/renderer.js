@@ -4,15 +4,15 @@ import { points, pointsFor, worldToScreen, screenToWorld } from "./geometry.js";
 
 function drawSideArrowsScreenSpace(targetCtx, flashing, screenPts, offsetDist) {
   const side = flashing.colouredSide;
-  if (side !== 1 && side !== -1) return; // "none" selected — draw nothing
+  if (side !== 1 && side !== -1) return;
 
-  const stemLength = 22;    // gap between the profile line and the arrowhead
-  const arrowLength = 14;   // length of the arrowhead triangle itself
-  const arrowWidth = 7;     // half-width of the arrowhead base
+  const stemLength = 22;
+  const arrowLength = 14;
+  const arrowWidth = 7;
 
   targetCtx.fillStyle = "#ff0000";
   targetCtx.strokeStyle = "#ff0000";
-  targetCtx.lineWidth = 4;
+  targetCtx.lineWidth = 2;
 
   for (let i = 0; i < flashing.segments.length; i++) {
     const a = screenPts[i];
@@ -24,7 +24,6 @@ function drawSideArrowsScreenSpace(targetCtx, flashing, screenPts, offsetDist) {
     const nx = (-dy / len) * side;
     const ny = (dx / len) * side;
 
-    // stem: from the profile line out to where the arrowhead starts
     const stemStartX = midX + nx * offsetDist;
     const stemStartY = midY + ny * offsetDist;
     const stemEndX = midX + nx * (offsetDist + stemLength);
@@ -35,7 +34,6 @@ function drawSideArrowsScreenSpace(targetCtx, flashing, screenPts, offsetDist) {
     targetCtx.lineTo(stemEndX, stemEndY);
     targetCtx.stroke();
 
-    // arrowhead: triangle continuing past the end of the stem
     const tipX = midX + nx * (offsetDist + stemLength + arrowLength);
     const tipY = midY + ny * (offsetDist + stemLength + arrowLength);
     const px = -dy / len, py = dx / len;
@@ -77,10 +75,19 @@ export function draw() {
     ctx.beginPath();
     ctx.moveTo(pts[0].x, pts[0].y);
     for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-    if (state.dragging && state.mode === "draw" && state.dragPreview) {
+    // extend-from-end preview appends to the existing path
+    if (state.dragging && state.mode === "draw" && state.dragPreview && !state.dragFromStart) {
       ctx.lineTo(state.dragPreview.x, state.dragPreview.y);
     }
     ctx.stroke();
+
+    // prepend-from-start preview is a separate short segment, drawn independently
+    if (state.dragging && state.mode === "draw" && state.dragPreview && state.dragFromStart) {
+      ctx.beginPath();
+      ctx.moveTo(state.dragPreview.x, state.dragPreview.y);
+      ctx.lineTo(pts[0].x, pts[0].y);
+      ctx.stroke();
+    }
 
     ctx.fillStyle = "#111";
     pts.forEach((p) => {
@@ -129,13 +136,14 @@ export function draw() {
     drawSideArrowsScreenSpace(ctx, active, screenPts, 20);
   }
 
+  // live length label while dragging (works for both extend and prepend)
   if (state.dragging && state.mode === "draw" && state.dragPreview && pts.length) {
-    const last = pts[pts.length - 1];
-    const a = worldToScreen(last);
+    const anchor = state.dragFromStart ? pts[0] : pts[pts.length - 1];
+    const a = worldToScreen(anchor);
     const b = worldToScreen(state.dragPreview);
     const midX = (a.x + b.x) / 2;
     const midY = (a.y + b.y) / 2;
-    const dist = Math.hypot(state.dragPreview.x - last.x, state.dragPreview.y - last.y);
+    const dist = Math.hypot(state.dragPreview.x - anchor.x, state.dragPreview.y - anchor.y);
     const lengthMM = Math.round((dist / PX_PER_MM) * 10) / 10;
 
     const text = `${lengthMM} mm`;
@@ -237,7 +245,7 @@ export function renderFlashingThumbnail(flashing, pxWidth, pxHeight) {
     const len = Math.hypot(dx, dy) || 1;
     const nx = -dy / len, ny = dx / len;
     const labelX = midX + nx * 12, labelY = midY + ny * 12;
-    const text = `${flashing.segments[i].length_mm} mm`;
+    const text = `${flashing.segments[i].length_mm}`;
     const tw = octx.measureText(text).width;
     octx.fillStyle = "rgba(255,255,255,0.9)";
     octx.fillRect(labelX - tw / 2 - 3, labelY - 8, tw + 6, 16);
