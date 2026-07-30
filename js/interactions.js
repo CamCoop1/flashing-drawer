@@ -272,9 +272,25 @@ export function initInteractions() {
     }
   });
 
-  canvas.addEventListener("touchstart", (e) => { e.preventDefault(); onDown(e); });
-  canvas.addEventListener("touchmove", (e) => { e.preventDefault(); onMove(e); });
-  canvas.addEventListener("touchend", (e) => { e.preventDefault(); onUp(e); });
+  canvas.addEventListener("touchstart", (e) => {
+    onDown(e);
+    // Only take over the gesture (block scroll) if something is actually
+    // happening as a result — dragging a new segment, editing a vertex, or panning.
+    if (state.dragging || state.editingIndex !== null || state.panning) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener("touchmove", (e) => {
+    if (state.dragging || state.editingIndex !== null || state.panning) {
+      e.preventDefault();
+    }
+    onMove(e);
+  }, { passive: false });
+
+  canvas.addEventListener("touchend", (e) => {
+    onUp(e);
+  }, { passive: false });
 
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
