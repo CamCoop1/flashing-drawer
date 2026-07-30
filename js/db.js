@@ -65,7 +65,7 @@ export async function createFlashingRow(projectId, flashing, sortOrder = 0) {
   return data;
 }
 
-export async function updateFlashingRow(flashing) {
+async function updateFlashingRow(flashing) {
   const { error } = await supabase
     .from("flashings")
     .update({ ...flashingToRow(flashing), updated_at: new Date().toISOString() })
@@ -78,29 +78,83 @@ export async function deleteFlashingRow(flashingId) {
   if (error) throw error;
 }
 
-// --- debounced autosave, so drags/typing don't fire a network call per pixel/keystroke ---
+// --- save status tracking, so the UI can show Saving / Saved / Failed ---
+let statusCallback = null;
+export function onSaveStatusChange(fn) {
+  statusCallback = fn;
+}
+function setStatus(status) {
+  if (statusCallback) statusCallback(status); // "saving" | "saved" | "error"
+}
+
+async function updateFlashingRowTracked(flashing) {
+  try {
+    await updateFlashingRow(flashing);
+    setStatus("saved");
+  } catch (err) {
+    setStatus("error");
+    throw err;
+  }
+}
+
 const pendingSaves = new Map(); // flashingId -> timeout handle
 
 export function debouncedSaveFlashing(flashing, delay = 600) {
   if (!flashing?.id) return;
   clearTimeout(pendingSaves.get(flashing.id));
+  setStatus("saving");
   const handle = setTimeout(() => {
-    updateFlashingRow(flashing).catch(err => {
-      console.error("Failed to save flashing:", err);
-    });
+    updateFlashingRowTracked(flashing).catch(err => console.error("Failed to save flashing:", err));
     pendingSaves.delete(flashing.id);
   }, delay);
   pendingSaves.set(flashing.id, handle);
 }
 
-// Flushes any pending debounced save immediately — useful right before
-// navigating away (e.g. back to menu) so nothing gets lost.
 export function flushPendingSaves(flashings = []) {
   flashings.forEach(f => {
     if (pendingSaves.has(f.id)) {
       clearTimeout(pendingSaves.get(f.id));
       pendingSaves.delete(f.id);
-      updateFlashingRow(f).catch(err => console.error("Flush save failed:", err));
+      updateFlashingRowTracked(f).catch(err => console.error("Flush save failed:", err));
     }
   });
+}
+
+// --- templates (custom, per-user) ---
+export async function fetchCustomTemplates() {
+  const { data, error } = await supabase
+    .from("templates")
+    .select("*")
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return data.map(t => ({
+    key: t.id,
+    label: t.label,
+    colourName: t.colour_name || "",
+    colouredSide: t.coloured_side,
+    segments: t.segments,
+    custom: true,
+  }));
+}
+
+export async function createTemplateRow(userId, flashing) {
+  const { data, error } = await supabase
+    .from("templates")
+    .insert({
+      user_id: userId,
+      label: flashing.name,
+      colour_name: flashing.colourName,
+      coloured_side: flashing.colouredSide,
+      segments: flashing.segments,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+
+export async function deleteTemplateRow(templateId) {
+  const { error } = await supabase.from("templates").delete().eq("id", templateId);
+  if (error) throw error;
 }

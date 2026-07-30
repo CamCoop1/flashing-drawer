@@ -4,6 +4,39 @@
 // flashing can never leak back into this array or into any other flashing
 // cloned from the same template.
 
+async function openTemplateModal() {
+  const modal = document.getElementById("templateModal");
+  const list = document.getElementById("templateList");
+  list.innerHTML = "<p style='color:#9a9a9a; font-size:0.85rem;'>Loading templates...</p>";
+  modal.style.display = "flex";
+
+  let customTemplates = [];
+  try {
+    customTemplates = await fetchCustomTemplates();
+  } catch (err) {
+    console.error("Failed to load custom templates:", err);
+  }
+
+  const allTemplates = [...FLASHING_TEMPLATES, ...customTemplates];
+  list.innerHTML = "";
+
+  allTemplates.forEach(t => {
+    const preview = cloneTemplate(t);
+    const thumbCanvas = renderFlashingThumbnail(preview, 300, 200);
+
+    const item = document.createElement("div");
+    item.className = "template-item";
+    item.innerHTML = `
+      <img src="${thumbCanvas.toDataURL("image/png")}" alt="${t.label}">
+      <div class="name">${t.label}${t.custom ? " (yours)" : ""}</div>
+    `;
+    item.addEventListener("click", async () => {
+      modal.style.display = "none";
+      await addFlashingFromTemplate(t);
+    });
+    list.appendChild(item);
+  });
+}
 export const FLASHING_TEMPLATES = [
   {
     key: "apron",

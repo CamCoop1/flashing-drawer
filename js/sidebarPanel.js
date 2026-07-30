@@ -1,10 +1,20 @@
-import { FLASHING_TEMPLATES, cloneTemplate } from "./templates.js";
-import { renderFlashingThumbnail } from "./renderer.js";
 import { state, makeFlashing, parseRunLengths, getActive, getActiveProject } from "./state.js";
-import { createFlashingRow, deleteFlashingRow, debouncedSaveFlashing } from "./db.js";
-import { draw, fitViewToActive } from "./renderer.js";
+import { createFlashingRow, deleteFlashingRow, debouncedSaveFlashing, createTemplateRow, fetchCustomTemplates, deleteTemplateRow} from "./db.js";
+import { draw, fitViewToActive, renderFlashingThumbnail } from "./renderer.js";
 import { renderTable } from "./segmentTable.js";
 import { updateHint } from "./interactions.js";
+import { currentUser } from "./auth.js";
+import { FLASHING_TEMPLATES, cloneTemplate } from "./templates.js";
+
+let cachedCustomTemplates = null; // null = not yet fetched this session
+
+async function getCustomTemplates(forceRefresh = false) {
+  if (cachedCustomTemplates !== null && !forceRefresh) {
+    return cachedCustomTemplates;
+  }
+  cachedCustomTemplates = await fetchCustomTemplates();
+  return cachedCustomTemplates;
+}
 
 function escapeHtml(str) {
   const div = document.createElement("div");
@@ -32,18 +42,41 @@ export function renderFlashingList() {
         <div class="name">${escapeHtml(f.name || "Untitled")}</div>
         <div class="meta">${f.segments.length} seg · ${Math.round(girth * 10) / 10}mm girth</div>
       </div>
+      <button class="dupBtn" data-id="${f.id}" title="Duplicate">⧉</button>
       <button class="delBtn" data-id="${f.id}">✕</button>
     `;
     item.addEventListener("click", (e) => {
-      if (e.target.classList.contains("delBtn")) return;
+      if (e.target.classList.contains("delBtn") || e.target.classList.contains("dupBtn")) return;
       selectFlashing(f.id);
     });
     item.querySelector(".delBtn").addEventListener("click", (e) => {
       e.stopPropagation();
       deleteFlashing(f.id);
     });
+    item.querySelector(".dupBtn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      duplicateFlashing(f.id);
+    });
     list.appendChild(item);
   });
+}
+async function duplicateFlashing(id) {
+  const project = getActiveProject();
+  if (!project) return;
+  const original = project.flashings.find(f => f.id === id);
+  if (!original) return;
+
+  const copy = structuredClone(original);
+  copy.name = `${original.name} (copy)`;
+
+  try {
+    const row = await createFlashingRow(project.id, copy, project.flashings.length);
+    copy.id = row.id;
+    project.flashings.push(copy);
+    selectFlashing(copy.id);
+  } catch (err) {
+    alert(`Couldn't duplicate flashing: ${err.message}`);
+  }
 }
 
 export function selectFlashing(id) {
@@ -145,6 +178,24 @@ export function initSidebarPanel() {
     }
   });
 
+  document.getElementById("saveAsTemplateBtn").addEventListener("click", async () => {
+    const active = getActive();
+    if (!active) return;
+    if (!active.segments.length) {
+      alert("This flashing has no segments to save yet.");
+      return;
+    }
+    const label = prompt("Template name:", active.name);
+    if (!label) return;
+
+    try {
+      await createTemplateRow(currentUser.id, { ...active, name: label });
+      cachedCustomTemplates = null; // force a re-fetch next time the modal opens
+      alert("Saved as template.");
+    } catch (err) {
+      alert(`Couldn't save template: ${err.message}`);
+    }
+  });
   document.getElementById("fName").addEventListener("input", (e) => {
     const active = getActive();
     if (!active) return;
@@ -188,29 +239,61 @@ export function initSidebarPanel() {
   });
 }
 
-function openTemplateModal() {
+async function openTemplateModal() {
   const modal = document.getElementById("templateModal");
+  const list = document.getElementById("templateList");
+  modal.style.display = "flex";
+
+  // Render built-ins instantly — no network wait for these
+  renderTemplateItems(FLASHING_TEMPLATES);
+
+  try {
+    const customTemplates = await getCustomTemplates();
+    renderTemplateItems([...FLASHING_TEMPLATES, ...customTemplates]);
+  } catch (err) {
+    console.error("Failed to load custom templates:", err);
+  }
+}
+
+function renderTemplateItems(templates) {
   const list = document.getElementById("templateList");
   list.innerHTML = "";
 
-  FLASHING_TEMPLATES.forEach(t => {
-    const preview = cloneTemplate(t); // safe: used only for rendering, discarded after
+  templates.forEach(t => {
+    const preview = cloneTemplate(t);
     const thumbCanvas = renderFlashingThumbnail(preview, 300, 200);
 
     const item = document.createElement("div");
     item.className = "template-item";
     item.innerHTML = `
       <img src="${thumbCanvas.toDataURL("image/png")}" alt="${t.label}">
-      <div class="name">${t.label}</div>
+      <div class="name">${t.label}${t.custom ? " (yours)" : ""}</div>
+      ${t.custom ? `<button class="template-delBtn" title="Delete template">del</button>` : ""}
     `;
+
     item.addEventListener("click", async () => {
-      modal.style.display = "none";
+      document.getElementById("templateModal").style.display = "none";
       await addFlashingFromTemplate(t);
     });
+
+    if (t.custom) {
+      const delBtn = item.querySelector(".template-delBtn");
+      delBtn.addEventListener("click", async (e) => {
+        e.stopPropagation(); // don't trigger the item's own click-to-add handler
+        if (!confirm(`Delete template "${t.label}"? This can't be undone.`)) return;
+        try {
+          await deleteTemplateRow(t.key);
+          cachedCustomTemplates = null; // force re-fetch next open
+          const refreshed = await getCustomTemplates();
+          renderTemplateItems([...FLASHING_TEMPLATES, ...refreshed]);
+        } catch (err) {
+          alert(`Couldn't delete template: ${err.message}`);
+        }
+      });
+    }
+
     list.appendChild(item);
   });
-
-  modal.style.display = "flex";
 }
 
 async function addFlashingFromTemplate(template) {
