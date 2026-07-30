@@ -1,3 +1,5 @@
+import { FLASHING_TEMPLATES, cloneTemplate } from "./templates.js";
+import { renderFlashingThumbnail } from "./renderer.js";
 import { state, makeFlashing, parseRunLengths, getActive, getActiveProject } from "./state.js";
 import { createFlashingRow, deleteFlashingRow, debouncedSaveFlashing } from "./db.js";
 import { draw, fitViewToActive } from "./renderer.js";
@@ -180,4 +182,48 @@ export function initSidebarPanel() {
     draw();
     debouncedSaveFlashing(active);
   });
+  document.getElementById("fromTemplateBtn").addEventListener("click", openTemplateModal);
+  document.getElementById("closeTemplateModalBtn").addEventListener("click", () => {
+    document.getElementById("templateModal").style.display = "none";
+  });
+}
+
+function openTemplateModal() {
+  const modal = document.getElementById("templateModal");
+  const list = document.getElementById("templateList");
+  list.innerHTML = "";
+
+  FLASHING_TEMPLATES.forEach(t => {
+    const preview = cloneTemplate(t); // safe: used only for rendering, discarded after
+    const thumbCanvas = renderFlashingThumbnail(preview, 300, 200);
+
+    const item = document.createElement("div");
+    item.className = "template-item";
+    item.innerHTML = `
+      <img src="${thumbCanvas.toDataURL("image/png")}" alt="${t.label}">
+      <div class="name">${t.label}</div>
+    `;
+    item.addEventListener("click", async () => {
+      modal.style.display = "none";
+      await addFlashingFromTemplate(t);
+    });
+    list.appendChild(item);
+  });
+
+  modal.style.display = "flex";
+}
+
+async function addFlashingFromTemplate(template) {
+  const project = getActiveProject();
+  if (!project) return;
+
+  const flashing = cloneTemplate(template); // fresh, independent object every time
+  try {
+    const row = await createFlashingRow(project.id, flashing, project.flashings.length);
+    flashing.id = row.id; // swap the temporary local id for the real DB id
+    project.flashings.push(flashing);
+    selectFlashing(flashing.id);
+  } catch (err) {
+    alert(`Couldn't add flashing from template: ${err.message}`);
+  }
 }

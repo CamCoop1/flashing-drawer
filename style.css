@@ -310,3 +310,52 @@ td button { padding: 2px 8px; font-size: 0.8rem; }
   white-space: nowrap;
 }
 .pw-toggle:hover { background: #1c1c1e; color: #f2f2f2; }
+.panel-header-actions { display: flex; gap: 6px; }
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-box {
+  background: #1c1c1e;
+  border-radius: 10px;
+  padding: 20px;
+  width: 90%;
+  max-width: 520px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.modal-header h2 { margin: 0; font-size: 1.1rem; }
+
+.template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.template-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #111;
+  border: 1px solid #2a2a2c;
+  border-radius: 8px;
+  padding: 10px;
+  cursor: pointer;
+}
+.template-item:hover { border-color: #3b82f6; }
+.template-item img { width: 90px; height: 60px; border-radius: 4px; background: #fff; object-fit: contain; }
+.template-item .name { font-weight: 600; font-size: 0.9rem; }
