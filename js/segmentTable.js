@@ -1,4 +1,5 @@
-import { getActive, saveProjects } from "./state.js";
+import { getActive } from "./state.js";
+import { debouncedSaveFlashing } from "./db.js";
 import { displayAngleFor, interiorToTurn } from "./geometry.js";
 import { draw } from "./renderer.js";
 import { renderFlashingList } from "./sidebarPanel.js";
@@ -40,8 +41,8 @@ export function renderTable() {
       active.segments[e.target.dataset.idx].length_mm = parseFloat(e.target.value) || 0;
       draw();
       updateTotal();
+      debouncedSaveFlashing(active);
     });
-    input.addEventListener("change", saveProjects);
   });
 
   document.querySelectorAll(".angleInput").forEach(input => {
@@ -53,12 +54,12 @@ export function renderTable() {
       interior = Math.min(Math.max(interior, 0), 180);
       active.segments[idx].rel_angle_deg = interiorToTurn(interior, active.segments[idx].rel_angle_deg);
       draw();
+      debouncedSaveFlashing(active);
     });
     input.addEventListener("blur", (e) => {
       const idx = parseInt(e.target.dataset.idx);
       e.target.value = displayAngleFor(active, idx);
     });
-    input.addEventListener("change", saveProjects);
   });
 
   document.querySelectorAll(".delBtn").forEach(btn => {
@@ -68,7 +69,7 @@ export function renderTable() {
       draw();
       updateTotal();
       renderFlashingList();
-      saveProjects();
+      debouncedSaveFlashing(active);
     });
   });
 
