@@ -82,13 +82,14 @@
 
 <div id="editorView" class="view">
   <header>
-    <div class="editor-title">
-      <button id="backToMenuBtn" class="icon-btn">←</button>
-      <div>
-        <h1 id="projectTitle">Project</h1>
-        <p id="projectSubtitle" class="project-subtitle"></p>
+      <div class="editor-title">
+        <button id="backToMenuBtn" class="back-btn">←</button>
+        <div>
+          <h1 id="projectTitle">Project</h1>
+          <p id="projectSubtitle" class="project-subtitle"></p>
+        </div>
+        <span id="saveStatus" class="save-status"></span>
       </div>
-    </div>
     <div class="toolbar">
       <div class="mode-group">
         <button id="modeDraw" class="mode-btn active">Draw</button>
@@ -106,31 +107,35 @@
   </header>
 
   <main>
+    <aside class="flashing-list-panel">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Flashings</h2>
+          <div class="panel-header-actions">
+            <button id="fromTemplateBtn">From Template</button>
+            <button id="addFlashingBtn">+ New</button>
+          </div>
+        </div>
+        <div id="flashingList" class="flashing-list"></div>
+      </div>
+    </aside>
+
     <div class="canvas-wrap">
       <canvas id="canvas" width="800" height="600"></canvas>
       <p class="hint" id="hint">Add a flashing on the right, then click the canvas to start drawing.</p>
     </div>
 
-    <aside class="sidebar">
-      <div class="panel">
-          <div class="panel-header">
-            <h2>Flashings</h2>
-            <div class="panel-header-actions">
-              <button id="fromTemplateBtn">From Template</button>
-              <button id="addFlashingBtn">+ New</button>
-            </div>
-          </div>
-        <div id="flashingList" class="flashing-list"></div>
-      </div>
-
+    <aside class="detail-panel-wrap">
       <div class="panel" id="detailPanel">
         <h2>Details</h2>
         <label>Name
           <input type="text" id="fName" placeholder="e.g. Apron flashing">
         </label>
+        <button type="button" id="saveAsTemplateBtn" class="secondary-btn">Save as Template</button>
         <label>Colour name
           <input type="text" id="fColourName" placeholder="e.g. Monument">
         </label>
+
         <div class="side-toggle-wrap">
           <span class="side-toggle-caption">Coloured side</span>
           <button id="colouredSideToggle" class="side-toggle-btn" type="button" title="Click to flip which side is coloured">
@@ -139,6 +144,7 @@
             <span id="arrowRight" class="side-arrow">▶</span>
           </button>
         </div>
+
         <label>Flashing lengths (qty/length)
           <input type="text" id="fRunLengths" placeholder="e.g. 1/3.000 2/2.450">
         </label>
