@@ -1,4 +1,5 @@
-import { state, makeFlashing, parseRunLengths, getActive, getActiveProject, saveProjects } from "./state.js";
+import { state, makeFlashing, parseRunLengths, getActive, getActiveProject } from "./state.js";
+import { createFlashingRow, deleteFlashingRow, debouncedSaveFlashing } from "./db.js";
 import { draw, fitViewToActive } from "./renderer.js";
 import { renderTable } from "./segmentTable.js";
 import { updateHint } from "./interactions.js";
@@ -52,20 +53,25 @@ export function selectFlashing(id) {
   updateHint();
 }
 
-export function deleteFlashing(id) {
+export async function deleteFlashing(id) {
   const project = getActiveProject();
   if (!project) return;
   if (!confirm("Delete this flashing?")) return;
-  project.flashings = project.flashings.filter(f => f.id !== id);
-  if (state.activeFlashingId === id) {
-    state.activeFlashingId = project.flashings.length ? project.flashings[0].id : null;
+
+  try {
+    await deleteFlashingRow(id);
+    project.flashings = project.flashings.filter(f => f.id !== id);
+    if (state.activeFlashingId === id) {
+      state.activeFlashingId = project.flashings.length ? project.flashings[0].id : null;
+    }
+    renderFlashingList();
+    syncDetailPanel();
+    renderTable();
+    fitViewToActive();
+    updateHint();
+  } catch (err) {
+    alert(`Couldn't delete flashing: ${err.message}`);
   }
-  saveProjects();
-  renderFlashingList();
-  syncDetailPanel();
-  renderTable();
-  fitViewToActive();
-  updateHint();
 }
 
 function updateLengthsPreview(rawStr) {
@@ -123,13 +129,18 @@ export function syncDetailPanel() {
 }
 
 export function initSidebarPanel() {
-  document.getElementById("addFlashingBtn").addEventListener("click", () => {
+  document.getElementById("addFlashingBtn").addEventListener("click", async () => {
     const project = getActiveProject();
     if (!project) return;
     const f = makeFlashing(project);
-    project.flashings.push(f);
-    saveProjects();
-    selectFlashing(f.id);
+    try {
+      const row = await createFlashingRow(project.id, f, project.flashings.length);
+      f.id = row.id;
+      project.flashings.push(f);
+      selectFlashing(f.id);
+    } catch (err) {
+      alert(`Couldn't create flashing: ${err.message}`);
+    }
   });
 
   document.getElementById("fName").addEventListener("input", (e) => {
@@ -137,14 +148,14 @@ export function initSidebarPanel() {
     if (!active) return;
     active.name = e.target.value;
     renderFlashingList();
-    saveProjects();
+    debouncedSaveFlashing(active);
   });
 
   document.getElementById("fColourName").addEventListener("input", (e) => {
     const active = getActive();
     if (!active) return;
     active.colourName = e.target.value;
-    saveProjects();
+    debouncedSaveFlashing(active);
   });
 
   document.getElementById("fRunLengths").addEventListener("input", (e) => {
@@ -152,13 +163,12 @@ export function initSidebarPanel() {
     if (!active) return;
     active.run_lengths_raw = e.target.value;
     updateLengthsPreview(e.target.value);
-    saveProjects();
+    debouncedSaveFlashing(active);
   });
 
   document.getElementById("colouredSideToggle").addEventListener("click", () => {
     const active = getActive();
     if (!active) return;
-    // cycle: none -> right (1) -> left (-1) -> none
     if (active.colouredSide === null || active.colouredSide === undefined) {
       active.colouredSide = 1;
     } else if (active.colouredSide === 1) {
@@ -168,6 +178,6 @@ export function initSidebarPanel() {
     }
     updateSideToggleUI(active);
     draw();
-    saveProjects();
+    debouncedSaveFlashing(active);
   });
 }

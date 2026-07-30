@@ -1,5 +1,6 @@
 import { canvas } from "./canvas.js";
-import { state, PX_PER_MM, getActive, saveProjects } from "./state.js";
+import { state, PX_PER_MM, getActive } from "./state.js";
+import { debouncedSaveFlashing } from "./db.js";
 import { points, cumulativeDirs, snapRel, worldToScreen, screenToWorld, getRawCanvasPos } from "./geometry.js";
 import { draw, fitViewToActive } from "./renderer.js";
 import { renderTable } from "./segmentTable.js";
@@ -19,7 +20,6 @@ function nearestVertex(rawPos) {
   return null;
 }
 
-// Normalize any angle difference into the -180..180 range
 function normalizeAngle(deg) {
   let d = ((deg % 360) + 360) % 360;
   if (d > 180) d -= 360;
@@ -56,12 +56,12 @@ function onDown(e) {
     return;
   }
 
-  // draw mode
   if (!active.startPoint) {
     active.startPoint = screenToWorld(rawPos);
     draw();
     updateHint();
     renderFlashingList();
+    debouncedSaveFlashing(active);
     return;
   }
 
@@ -70,7 +70,6 @@ function onDown(e) {
   const first = pts[0];
   const lastScreen = worldToScreen(last);
 
-  // priority 1: grab the end point to extend as usual
   if (Math.hypot(rawPos.x - lastScreen.x, rawPos.y - lastScreen.y) <= HIT_RADIUS) {
     state.dragging = true;
     state.dragFromStart = false;
@@ -78,8 +77,6 @@ function onDown(e) {
     return;
   }
 
-  // priority 2: grab the start point to prepend a new first segment
-  // (only meaningful once there's at least one segment — otherwise start === end already handled above)
   if (pts.length > 1) {
     const firstScreen = worldToScreen(first);
     if (Math.hypot(rawPos.x - firstScreen.x, rawPos.y - firstScreen.y) <= HIT_RADIUS) {
@@ -134,11 +131,9 @@ function onMove(e) {
     const pts = points();
 
     if (state.dragFromStart) {
-      // Anchor is the current (fixed) start point. The dragged point becomes
-      // the NEW start; the new segment points from the new start TO the anchor.
       const anchor = pts[0];
       const rawAngle = (Math.atan2(anchor.y - worldPos.y, anchor.x - worldPos.x) * 180) / Math.PI;
-      const relAngle = snapRel(rawAngle); // absolute direction, since this will become segment 0
+      const relAngle = snapRel(rawAngle);
       const dist = Math.hypot(anchor.x - worldPos.x, anchor.y - worldPos.y);
       const rad = (relAngle * Math.PI) / 180;
 
@@ -170,7 +165,7 @@ function onUp() {
 
   if (state.mode === "pan") { state.panning = false; return; }
   if (state.mode === "edit") {
-    if (state.editingIndex !== null) saveProjects();
+    if (state.editingIndex !== null) debouncedSaveFlashing(active);
     state.editingIndex = null;
     return;
   }
@@ -187,9 +182,6 @@ function onUp() {
         const rawAngle = (Math.atan2(anchor.y - state.dragPreview.y, anchor.x - state.dragPreview.x) * 180) / Math.PI;
         const newFirstAbsDir = snapRel(rawAngle);
 
-        // The old first segment's stored angle was absolute (it had no "previous").
-        // Recompute it as a turn relative to the new first segment, so the
-        // rest of the shape geometrically stays exactly where it was.
         if (active.segments.length) {
           const oldFirstAbsDir = active.segments[0].rel_angle_deg;
           active.segments[0].rel_angle_deg = normalizeAngle(oldFirstAbsDir - newFirstAbsDir);
@@ -200,7 +192,7 @@ function onUp() {
 
         renderTable();
         renderFlashingList();
-        saveProjects();
+        debouncedSaveFlashing(active);
       }
 
       state.dragging = false;
@@ -211,7 +203,6 @@ function onUp() {
       return;
     }
 
-    // normal extend-from-end
     const last = pts[pts.length - 1];
     const dist = Math.hypot(state.dragPreview.x - last.x, state.dragPreview.y - last.y);
     const lengthMM = Math.round((dist / PX_PER_MM) * 10) / 10;
@@ -224,7 +215,7 @@ function onUp() {
       active.segments.push({ length_mm: lengthMM, rel_angle_deg: relAngle });
       renderTable();
       renderFlashingList();
-      saveProjects();
+      debouncedSaveFlashing(active);
     }
     state.dragging = false;
     state.dragFromStart = false;
@@ -317,7 +308,7 @@ export function initInteractions() {
     renderTable();
     draw();
     renderFlashingList();
-    saveProjects();
+    debouncedSaveFlashing(active);
   });
 
   document.getElementById("clearShapeBtn").addEventListener("click", () => {
@@ -330,6 +321,6 @@ export function initInteractions() {
     draw();
     renderFlashingList();
     updateHint();
-    saveProjects();
+    debouncedSaveFlashing(active);
   });
 }

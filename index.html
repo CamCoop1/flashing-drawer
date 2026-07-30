@@ -7,13 +7,60 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div id="authView" class="view active">
+      <div class="auth-wrap">
+        <h1>Flashing Projects</h1>
+        <p class="auth-subtitle">Sign in to access your saved projects.</p>
 
-<div id="menuView" class="view active">
-  <div class="menu-wrap">
-    <div class="menu-header">
-      <h1>Flashing Projects</h1>
-      <button id="newProjectBtn" class="primary">+ New Project</button>
+        <!-- Sign In form -->
+        <form id="signInForm" class="auth-form">
+          <label>Email
+            <input type="email" id="siEmail" required autocomplete="email">
+          </label>
+          <label>Password
+            <div class="password-field">
+              <input type="password" id="siPassword" required autocomplete="current-password" minlength="6">
+              <button type="button" class="pw-toggle" data-target="siPassword">Show</button>
+            </div>
+          </label>
+          <p id="signInError" class="auth-error"></p>
+          <button type="submit" id="signInBtn" class="primary full-width">Sign In</button>
+          <button type="button" id="showSignUpBtn" class="link-btn">Create Account</button>
+        </form>
+
+        <!-- Create Account form (hidden by default) -->
+        <form id="signUpForm" class="auth-form" style="display:none;">
+          <label>Email
+            <input type="email" id="suEmail" required autocomplete="email">
+          </label>
+          <label>Password
+            <div class="password-field">
+              <input type="password" id="suPassword" required autocomplete="new-password" minlength="6">
+              <button type="button" class="pw-toggle" data-target="suPassword">Show</button>
+            </div>
+          </label>
+          <label>Confirm Password
+            <div class="password-field">
+              <input type="password" id="suPasswordConfirm" required autocomplete="new-password" minlength="6">
+              <button type="button" class="pw-toggle" data-target="suPasswordConfirm">Show</button>
+            </div>
+          </label>
+          <p id="signUpError" class="auth-error"></p>
+          <button type="submit" id="signUpSubmitBtn" class="primary full-width">Create Account</button>
+          <button type="button" id="showSignInBtn" class="link-btn">Back to Sign In</button>
+        </form>
+
+        <p id="authStatus" class="auth-status"></p>
+      </div>
     </div>
+<div id="menuView" class="view">
+  <div class="menu-wrap">
+      <div class="menu-header-actions">
+        <span id="userEmailLabel" class="user-email-label"></span>
+        <button id="signOutBtn">Sign Out</button>
+        <button id="exportProjectsBtn">⬇ Export All</button>
+        <button id="newProjectBtn" class="primary">+ New Project</button>
+      </div>
 
     <div id="newProjectForm" class="new-project-form" style="display:none;">
       <label>Project Name
