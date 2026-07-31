@@ -31,12 +31,14 @@ export function renderTable() {
         <input type="number" min="0" max="180" step="1" value="${angleValue}"
           data-idx="${i}" class="angleInput" ${isFirst ? "disabled" : ""}>
       </td>
-      <td><button data-idx="${i}" class="delBtn">✕</button></td>
+      <td><button data-idx="${i}" class="segDelBtn">✕</button></td>
     `;
     body.appendChild(tr);
   });
 
-  document.querySelectorAll(".lenInput").forEach(input => {
+  // Scoped to #segBody only, so this can never accidentally pick up
+  // delete buttons belonging to the flashing list sidebar.
+  body.querySelectorAll(".lenInput").forEach(input => {
     input.addEventListener("input", (e) => {
       active.segments[e.target.dataset.idx].length_mm = parseFloat(e.target.value) || 0;
       draw();
@@ -45,7 +47,7 @@ export function renderTable() {
     });
   });
 
-  document.querySelectorAll(".angleInput").forEach(input => {
+  body.querySelectorAll(".angleInput").forEach(input => {
     input.addEventListener("input", (e) => {
       const idx = parseInt(e.target.dataset.idx);
       if (idx === 0) return;
@@ -62,9 +64,9 @@ export function renderTable() {
     });
   });
 
-  document.querySelectorAll(".delBtn").forEach(btn => {
+  body.querySelectorAll(".segDelBtn").forEach(btn => {
     btn.addEventListener("click", (e) => {
-      active.segments.splice(e.target.dataset.idx, 1);
+      active.segments.splice(parseInt(e.target.dataset.idx), 1);
       renderTable();
       draw();
       updateTotal();
