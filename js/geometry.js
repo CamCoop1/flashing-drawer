@@ -10,18 +10,23 @@ export function cumulativeDirs(segments) {
   return dirs;
 }
 
-export function pointsFor(flashing) {
-  if (!flashing || !flashing.startPoint) return [];
-  const dirs = cumulativeDirs(flashing.segments);
-  const pts = [flashing.startPoint];
-  let cur = flashing.startPoint;
-  flashing.segments.forEach((seg, i) => {
+export function computePoints(startPoint, segments) {
+  if (!startPoint) return [];
+  const dirs = cumulativeDirs(segments);
+  const pts = [startPoint];
+  let cur = startPoint;
+  segments.forEach((seg, i) => {
     const rad = (dirs[i] * Math.PI) / 180;
     const lenPx = seg.length_mm * PX_PER_MM;
     cur = { x: cur.x + lenPx * Math.cos(rad), y: cur.y + lenPx * Math.sin(rad) };
     pts.push(cur);
   });
   return pts;
+}
+
+export function pointsFor(flashing) {
+  if (!flashing) return [];
+  return computePoints(flashing.startPoint, flashing.segments);
 }
 
 export function points() {
@@ -65,4 +70,18 @@ export function getRawCanvasPos(e, canvas) {
   const clientX = e.touches ? e.touches[0].clientX : e.clientX;
   const clientY = e.touches ? e.touches[0].clientY : e.clientY;
   return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+}
+
+
+export function rotatePointsAroundCenter(pts, degrees) {
+  if (!degrees || !pts.length) return pts;
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const rad = (degrees * Math.PI) / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  return pts.map(p => {
+    const dx = p.x - cx, dy = p.y - cy;
+    return { x: cx + dx * cos - dy * sin, y: cy + dx * sin + dy * cos };
+  });
 }

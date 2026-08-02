@@ -4,7 +4,7 @@ import { currentUser } from "./auth.js";
 import { showView } from "./views.js";
 import { renderFlashingList, syncDetailPanel } from "./sidebarPanel.js";
 import { renderTable } from "./segmentTable.js";
-import { fitViewToActive } from "./renderer.js";
+import { fitViewToActive } from "./draw/index.js";
 import { updateHint } from "./interactions.js";
 
 function escapeHtml(str) {

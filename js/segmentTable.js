@@ -1,7 +1,7 @@
 import { getActive } from "./state.js";
 import { debouncedSaveFlashing } from "./db.js";
 import { displayAngleFor, interiorToTurn } from "./geometry.js";
-import { draw } from "./renderer.js";
+import { draw } from "./draw/index.js";
 import { renderFlashingList } from "./sidebarPanel.js";
 
 export function renderTable() {

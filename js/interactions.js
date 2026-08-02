@@ -2,7 +2,7 @@ import { canvas } from "./canvas.js";
 import { state, PX_PER_MM, getActive } from "./state.js";
 import { debouncedSaveFlashing } from "./db.js";
 import { points, cumulativeDirs, snapRel, worldToScreen, screenToWorld, getRawCanvasPos } from "./geometry.js";
-import { draw, fitViewToActive } from "./renderer.js";
+import { draw, fitViewToActive, getDialHit, angleFromDial } from "./draw/index.js";
 import { renderTable } from "./segmentTable.js";
 import { renderFlashingList } from "./sidebarPanel.js";
 
@@ -29,6 +29,15 @@ function normalizeAngle(deg) {
 function onDown(e) {
   const rawPos = getRawCanvasPos(e, canvas);
 
+  if (getDialHit(rawPos)) {
+    const active = getActive();
+    if (active) {
+      state.draggingDial = true;
+      active.rotationDeg = angleFromDial(rawPos);
+      draw();
+    }
+    return;
+  }
   if (e.button === 1) {
     e.preventDefault();
     middlePanActive = true;
@@ -91,6 +100,23 @@ function onDown(e) {
 function onMove(e) {
   const active = getActive();
   const rawPos = getRawCanvasPos(e, canvas);
+
+  // Cursor feedback: show a grab cursor when hovering the rotation dial,
+  // unless we're already mid-drag on something else.
+  if (!state.dragging && !state.panning && state.editingIndex === null) {
+    canvas.style.cursor = getDialHit(rawPos) ? "grab" : "";
+  }
+  if (state.draggingDial) {
+    canvas.style.cursor = "grabbing";
+  }
+
+  if (state.draggingDial) {
+      if (active) {
+          active.rotationDeg = angleFromDial(rawPos);
+          draw();
+      }
+      return;
+  }
 
   if (state.mode === "pan" && state.panning) {
     state.offsetX = state.panOffsetStart.x + (rawPos.x - state.panStart.x);
@@ -161,6 +187,13 @@ function onMove(e) {
 }
 
 function onUp() {
+  if (state.draggingDial) {
+    state.draggingDial = false;
+    canvas.style.cursor = "";
+    const active = getActive();
+    if (active) debouncedSaveFlashing(active);
+    return;
+  }
   const active = getActive();
 
   if (state.mode === "pan") { state.panning = false; return; }

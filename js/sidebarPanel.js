@@ -1,6 +1,7 @@
+import { refreshTaperUI } from "./taper.js";
 import { state, makeFlashing, parseRunLengths, getActive, getActiveProject } from "./state.js";
 import { createFlashingRow, deleteFlashingRow, debouncedSaveFlashing, createTemplateRow, fetchCustomTemplates, deleteTemplateRow} from "./db.js";
-import { draw, fitViewToActive, renderFlashingThumbnail } from "./renderer.js";
+import { draw, fitViewToActive, renderFlashingThumbnail } from "./draw/index.js";
 import { renderTable } from "./segmentTable.js";
 import { updateHint } from "./interactions.js";
 import { currentUser } from "./auth.js";
@@ -86,6 +87,7 @@ export function selectFlashing(id) {
   renderTable();
   fitViewToActive();
   updateHint();
+  refreshTaperUI();
 }
 
 export async function deleteFlashing(id) {
