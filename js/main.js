@@ -6,6 +6,7 @@ import { initSidebarPanel } from "./sidebarPanel.js";
 import { initInteractions } from "./interactions.js";
 import { initExport } from "./pdfExport.js";
 import { onSaveStatusChange } from "./db.js";
+import { initTaper } from "./taper.js";
 
 let hasHandledInitialAuth = false;
 let wasSignedIn = false;
@@ -47,6 +48,7 @@ function init() {
   initSidebarPanel();
   initInteractions();
   initExport();
+    initTaper();
   onSaveStatusChange(updateSaveStatusUI);
 
   initAuth(onAuthStateChanged);

@@ -487,3 +487,5 @@ td button { padding: 2px 8px; font-size: 0.8rem; }
 .back-btn:active {
   background: #16223a;
 }
+
+.taper-group { display: flex; align-items: center; }

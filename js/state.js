@@ -13,13 +13,13 @@ export const state = {
   offsetY: 0,
   dragging: false,
   dragFromStart: false,
+  draggingDial: false,
   dragPreview: null,
   editingIndex: null,
   panning: false,
   panStart: null,
   panOffsetStart: null,
 };
-
 export function getActiveProject() {
   return state.projects.find(p => p.id === state.activeProjectId) || null;
 }
@@ -45,6 +45,10 @@ export function makeFlashing(project) {
     run_lengths_raw: "",
     startPoint: null,
     segments: [],
+    taperEnabled: false,
+    taperSide: "near",      // "near" | "far" — whichever side is currently loaded into segments/startPoint
+    farStartPoint: null,
+    farSegments: [],
   };
 }
 

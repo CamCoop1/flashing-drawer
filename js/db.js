@@ -23,6 +23,11 @@ export async function fetchProjects() {
         run_lengths_raw: f.run_lengths_raw || "",
         startPoint: f.start_point || null,
         segments: f.segments || [],
+        taperEnabled: f.taper_enabled ?? false,
+        taperSide: f.taper_side || "near",
+        farStartPoint: f.far_start_point || null,
+        farSegments: f.far_segments || [],
+        rotationDeg: f.rotation_deg ?? 0,
       })),
   }));
 }
@@ -51,6 +56,11 @@ function flashingToRow(flashing, extra = {}) {
     run_lengths_raw: flashing.run_lengths_raw,
     start_point: flashing.startPoint,
     segments: flashing.segments,
+    taper_enabled: flashing.taperEnabled ?? false,
+    taper_side: flashing.taperSide || "near",
+    far_start_point: flashing.farStartPoint || null,
+    far_segments: flashing.farSegments || [],
+    rotation_deg: flashing.rotationDeg ?? 0,
     ...extra,
   };
 }
